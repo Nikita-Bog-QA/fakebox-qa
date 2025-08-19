@@ -1,0 +1,37 @@
+name: API tests (Postman + Newman)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Newman + reporter
+        run: npm ci
+
+      - name: Run Newman (remote env)
+        run: |
+          npx newman run postman/Fakebox.postman_collection.json \
+            -e postman/Fakebox.postman_environment.remote.json \
+            -r cli,htmlextra \
+            --reporter-htmlextra-export newman-report.html
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-report
+          path: newman-report.html
