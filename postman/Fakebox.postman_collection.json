@@ -1,0 +1,201 @@
+{
+  "info": { "name": "FAKEBOX API", "_postman_id": "fakebox-collection", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "item": [
+    {
+      "name": "1) Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/health" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 OK', ()=> pm.response.code===200);",
+        "const j=pm.response.json(); pm.expect(j.ok).to.eql(true);"
+      ]}}]
+    },
+    {
+  "name": "2b) Me — без заголовка (ожидаем 401)",
+  "request": {
+    "method": "GET",
+    "header": [],
+    "url": "{{baseUrl}}/api/me"
+  },
+  "event": [
+    { "listen": "test", "script": { "exec": [
+      "pm.test('401 UNAUTH', ()=> pm.response.code===401);"
+    ]}}
+  ]
+},
+{
+  "name": "3b) Create submission — пустое тело (ожидаем 400)",
+  "request": {
+    "method": "POST",
+    "header": [
+      { "key": "content-type", "value": "application/json" },
+      { "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }
+    ],
+    "url": "{{baseUrl}}/api/submissions",
+    "body": { "mode": "raw", "raw": "{}" }
+  },
+  "event": [
+    { "listen": "test", "script": { "exec": [
+      "pm.test('400 BAD_REQ', ()=> pm.response.code===400);"
+    ]}}
+  ]
+},
+{
+  "name": "3c) Create submission — жёстко запрещённый контент (ожидаем rejected)",
+  "request": {
+    "method": "POST",
+    "header": [
+      { "key": "content-type", "value": "application/json" },
+      { "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }
+    ],
+    "url": "{{baseUrl}}/api/submissions",
+    "body": {
+      "mode": "raw",
+      "raw": "{\n  \"title\": \"Призыв к насилию и наркотики\",\n  \"body\": \"тут явные нарушения — суицид наркотик призыв к насилию\",\n  \"media\": \"\"\n}"
+    }
+  },
+  "event": [
+    { "listen": "test", "script": { "exec": [
+      "pm.test('200 OK', ()=> pm.response.code===200);",
+      "let j=null; try{ j=pm.response.json(); }catch(e){}",
+      "pm.test('ok=true', ()=> pm.expect(j?.ok).to.eql(true));",
+      "pm.test('status=rejected', ()=> pm.expect(j?.data?.status).to.eql('rejected'));"
+    ]}}
+  ]
+},
+{
+  "name": "5b) Approve — несуществующий id (ожидаем 404 или 403)",
+  "request": {
+    "method": "POST",
+    "header": [
+      { "key": "content-type", "value": "application/json" },
+      { "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }
+    ],
+    "url": "{{baseUrl}}/api/mod/approve",
+    "body": { "mode": "raw", "raw": "{ \"submission_id\": \"__INVALID__\" }" }
+  },
+  "event": [
+    { "listen": "test", "script": { "exec": [
+      "pm.test('404 или 403', ()=> [404,403].includes(pm.response.code));"
+    ]}}
+  ]
+},
+{
+  "name": "7b) Vote Up — повтор (ожидаем 409 DUP или 429 LIMIT)",
+  "request": {
+    "method": "POST",
+    "header": [
+      { "key": "content-type", "value": "application/json" },
+      { "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }
+    ],
+    "url": "{{baseUrl}}/api/votes",
+    "body": { "mode": "raw", "raw": "{ \"post_id\": \"{{lastPostId}}\", \"kind\":\"up\" }" }
+  },
+  "event": [
+    { "listen": "test", "script": { "exec": [
+      "pm.test('409 или 429', ()=> [409,429].includes(pm.response.code));"
+    ]}}
+  ]
+},
+    {
+      "name": "2) Me (Dev user)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }],
+        "url": "{{baseUrl}}/api/me"
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 OK', ()=> pm.response.code===200);",
+        "const u=pm.response.json().data; pm.expect(u).to.have.property('id'); pm.environment.set('devUserId', u.id);"
+      ]}}]
+    },
+    {
+      "name": "3) Create Submission",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "content-type", "value": "application/json" },
+          { "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }
+        ],
+        "url": "{{baseUrl}}/api/submissions",
+        "body": { "mode": "raw", "raw": "{\n  \"title\": \"Сенсация: коробка новости\",\n  \"body\": \"По слухам, FAKEBOX нашёл бесконечный заголовок.\",\n  \"media\": \"https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg\"\n}" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200/201', ()=> [200,201].includes(pm.response.code));",
+        "const j=pm.response.json(); pm.expect(j.ok).to.eql(true);",
+        "pm.environment.set('lastSubmissionId', j.data.id);"
+      ]}}]
+    },
+    {
+      "name": "4) Editor Queue (needs editor/admin)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }],
+        "url": "{{baseUrl}}/api/mod/queue?status=edited"
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200/403', ()=> [200,403].includes(pm.response.code));",
+        "if (pm.response.code===200) {",
+        " const arr=pm.response.json().data; pm.expect(arr).to.be.an('array');",
+        " if(arr.length){ pm.environment.set('lastSubmissionId', arr[0].id); }",
+        "}"
+      ]}}]
+    },
+    {
+      "name": "5) Approve (publish)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "content-type", "value": "application/json" },
+          { "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }
+        ],
+        "url": "{{baseUrl}}/api/mod/approve",
+        "body": { "mode": "raw", "raw": "{ \"submission_id\": \"{{lastSubmissionId}}\" }" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200/409/404', ()=> [200,409,404].includes(pm.response.code));",
+        "if (pm.response.code===200){",
+        "  const j=pm.response.json(); pm.environment.set('lastPostId', j.data.post_id);",
+        "}"
+      ]}}]
+    },
+    {
+      "name": "6) Posts (new)",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/posts?sort=new&lang={{lang}}" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 OK', ()=> pm.response.code===200);",
+        "const arr=pm.response.json().data; pm.expect(arr).to.be.an('array');",
+        "if(arr.length){ pm.environment.set('lastPostId', arr[0].id); }"
+      ]}}]
+    },
+    {
+      "name": "7) Vote Up",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "content-type", "value": "application/json" },
+          { "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }
+        ],
+        "url": "{{baseUrl}}/api/votes",
+        "body": { "mode": "raw", "raw": "{ \"post_id\": \"{{lastPostId}}\", \"kind\":\"up\" }" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200/409/429', ()=> [200,409,429].includes(pm.response.code));"
+      ]}}]
+    },
+    {
+      "name": "8) Report",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "content-type", "value": "application/json" },
+          { "key": "x-telegram-initdata", "value": "{{xTelegramInit}}" }
+        ],
+        "url": "{{baseUrl}}/api/reports",
+        "body": { "mode": "raw", "raw": "{ \"post_id\": \"{{lastPostId}}\", \"reason\":\"test report\" }" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 OK', ()=> pm.response.code===200);"
+      ]}}]
+    }
+  ]
+}
